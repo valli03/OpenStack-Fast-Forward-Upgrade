@@ -3,7 +3,7 @@
 # Items requiring configuration
 ###########################################
 
-container_namespace: "/rhosp13"
-containers_tag: 2018-05-07.2
-dns_server:
+additional_insecure_registry:
+containers_tag:
+local_docker_registry: true
 ntp_server:
