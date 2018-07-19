@@ -1,0 +1,124 @@
+---
+#
+# Playbook for updating the cloud from OSP 10 to OSP 13 via FFU
+
+- hosts: undercloud
+  gather_facts: true
+  vars_files:
+    - vars/main.yml
+  remote_user: stack
+  tasks:
+    - name: update repo
+      include: tasks/update_repo.yml
+      vars:
+        version: 11
+
+    - name: stop openstack services
+      become: true
+      command: "systemctl stop openstack-* neutron-* httpd"
+
+    - name: update packages
+      become: true
+      yum:
+        name: "{{item}}"
+        state: latest
+      with_items:
+        - instack-undercloud
+        - openstack-puppet-modules
+        - openstack-tripleo-common
+        - python-tripleoclient
+
+    - name: upgrade undercloud from 10 to 11
+      include: tasks/undercloud_upgrade.yml
+
+    - name: update repo
+      include: tasks/update_repo.yml
+      vars:
+        version: 12
+
+    - name: install ceph-ansible and update tripleoclient
+      become: true
+      yum:
+        name: "{{item}}"
+        state: latest
+      with_items:
+        - ceph-ansible
+        - python-tripleoclient
+
+    - name: upgrade undercloud from 11 to 12
+      include: tasks/undercloud_upgrade.yml
+
+    - name: update repo
+      include: tasks/update_repo.yml
+      vars:
+        version: 13
+
+    - name: update python-tripleoclient
+      yum:
+        name: python-tripleoclient
+        state: latest
+
+    - name: upgrade undercloud from 12 to 13
+      include: tasks/undercloud_upgrade.yml
+
+    - name: Append additional insecure registry to /etc/sysconfig/docker
+      become: true
+      lineinfile:
+        path: /etc/sysconfig/docker
+        state: present
+        regexp: '^INSECURE_REGISTRY='
+        line: 'INSECURE_REGISTRY="--insecure-registry 192.168.24.1:8787 --insecure-registry 192.168.24.3:8787 --insecure-registry {{container_namespace}}"'
+
+    - name: Restart Docker registry
+      become: true
+      service:
+        name: docker
+        state: restarted
+
+    - name: Create template to pull images to local registry
+      shell: ". /home/stack/stackrc; openstack overcloud container image prepare --namespace {{container_namespace}}/rhosp13 --tag {{containers_tag}}  --prefix openstack --push-destination 192.168.24.1:8787 --output-images-file ~/overcloud_containers.yaml --output-env-file ~/docker_registry.yaml"
+
+    - name: Pull the images
+      become: true
+      shell: ". /home/stack/stackrc; openstack overcloud container image upload --config-file ~/overcloud_containers.yaml --verbose"
+      register: pull_images
+      until: pull_images.rc == 0
+      retries: 2
+      delay: 10
+      ignore_errors: true
+
+    - name: convert old style controller templates
+      expect:
+        command: "/usr/share/openstack-tripleo-heat-templates/tools/yaml-nic-config-2-script.py ~/templates/nic-configs/controller.yaml"
+        responses:
+          (?i) Overwrite: y
+
+    - name: convert olf style compute templates
+      expect:
+        command: "/usr/share/openstack-tripleo-heat-templates/tools/yaml-nic-config-2-script.py ~/templates/nic-configs/compute.yaml"
+        responses:
+          (?i) Overwrite: y
+
+    - name: fast forward upgrade prepare
+      shell: "openstack overcloud ffwd-upgrade prepare --templates -e /home/stack/templates/network-environment.yaml -e /usr/share/openstack-tripleo-heat-templates/environments/network-isolation.yaml -e /home/stack/ffwd_repos.yaml -e /home/stack/templates/node-info.yaml --container-registry-file /home/stack/docker_registry.yaml --yes"
+      register: prepare_status
+
+    - name: fast forward upgrade run
+      shell: "openstack overcloud ffwd-upgrade run --yes"
+      when: "'stack overcloud complete' in prepare_status.stdout"
+      register: run_status
+      failed_when: "'' not in run_status.stdout"
+
+    - name: upgrade controllers
+      shell: "openstack overcloud upgrade --roles Controller --skip-tags validation"
+      when: "'' in run_status.stdout"
+      register: controller_status
+
+    - name: upgrade compute node 1
+      shell: "openstack overcloud upgrade --nodes overcloud-compute-0 --skip-tags validation"
+      when: "'Completed Overcloud Upgrade' in controller_status.stdout"
+      register: compute_status
+
+    - name: upgrade all compute nodes
+      shell: "openstack overcloud upgrade --roles Compute --skip-tags validation"
+      when: "'Completed Overcloud Upgrade' in compute_status.stdout"

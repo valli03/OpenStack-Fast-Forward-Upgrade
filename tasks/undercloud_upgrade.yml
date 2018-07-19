@@ -1,0 +1,2 @@
+- name: Upgrade the undercloud
+  shell: openstack undercloud upgrade

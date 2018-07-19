@@ -1,0 +1,9 @@
+---
+###########################################
+# Items requiring configuration
+###########################################
+
+container_namespace: "/rhosp13"
+containers_tag: 2018-05-07.2
+dns_server:
+ntp_server:
