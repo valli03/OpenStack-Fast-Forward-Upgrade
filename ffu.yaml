@@ -110,10 +110,11 @@
       shell: "openstack overcloud ffwd-upgrade run --yes"
       when: "'stack overcloud complete' in prepare_status.stdout"
       register: run_status
+      failed_when: "'failed=1' in run_status.stdout"
 
     - name: upgrade controllers
       shell: "openstack overcloud upgrade --roles Controller --skip-tags validation"
-      when: run_status.rc == 0
+      when: "'failed=1' not in run_status.stdout"
       register: controller_status
 
     - name: upgrade compute node 1
