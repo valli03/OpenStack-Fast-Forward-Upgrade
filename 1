@@ -62,8 +62,9 @@
     - name: upgrade undercloud from 12 to 13
       include: tasks/undercloud_upgrade.yml
 
-    - name: Prepare container images
-      include: tasks/container_registry_setup.yml
+    - name: Setup container images
+      become: true
+      include: tasks/container_image_setup.yml
 
     - name: convert old style nic templates
       expect:
