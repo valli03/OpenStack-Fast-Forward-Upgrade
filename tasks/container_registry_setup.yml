@@ -13,12 +13,12 @@
      state: restarted
 
 - name: Create template to pull images to local registry
-  shell: ". /home/stack/stackrc; openstack overcloud container image prepare --namespace {{additional_insecure_registry}}/rhosp13 --tag {{ containers_tag }}  --prefix openstack- --push-destination 192.168.24.1:8787 --output-images-file ~/overcloud_containers.yaml --output-env-file ~/docker_registry.yaml"
+  shell: ". /home/stack/stackrc; openstack overcloud container image prepare --namespace {{additional_insecure_registry}}/rhosp13 --tag {{ containers_tag }}  --prefix openstack- --push-destination 192.168.24.1:8787 --output-images-file /home/stack/overcloud_containers.yaml --output-env-file /home/stack/docker_registry.yaml"
   when: local_docker_registry
 
 - name: Pull the images
   become: true
-  shell: ". /home/stack/stackrc; openstack overcloud container image upload --config-file ~/overcloud_containers.yaml --verbose"
+  shell: ". /home/stack/stackrc; openstack overcloud container image upload --config-file /home/stack/overcloud_containers.yaml"
   register: pull_images
   until: pull_images.rc == 0
   retries: 2
@@ -27,5 +27,5 @@
   when: local_docker_registry
 
 - name: Create template to use images from remote registry
-  shell: ". /home/stack/stackrc; openstack overcloud container image prepare --namespace {{additional_insecure_registry}}/rhosp13 --tag {{ containers_tag }}  --prefix openstack- --output-env-file ~/docker_registry.yaml"
+  shell: ". /home/stack/stackrc; openstack overcloud container image prepare --namespace {{additional_insecure_registry}}/rhosp13 --tag {{ containers_tag }}  --prefix openstack- --output-env-file /home/stack/docker_registry.yaml"
   when: not local_docker_registry

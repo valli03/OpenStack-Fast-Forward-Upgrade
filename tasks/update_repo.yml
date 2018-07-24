@@ -2,6 +2,6 @@
   become: true
   command: "rhos-release -x"
 
-- name: Setup OSP version to install
+- name: Setup OSP version {{version}} to install
   become: true
   command: "rhos-release {{version}} -P"
