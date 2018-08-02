@@ -1,2 +1,4 @@
-- name: Upgrade the undercloud
+- name: Upgrade the undercloud from {{from_version}} to {{to_version}}
   shell: openstack undercloud upgrade
+  register: upgrade_status
+  until: upgrade_status.rc == 0
