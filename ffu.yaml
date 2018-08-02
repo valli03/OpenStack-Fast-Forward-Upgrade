@@ -121,3 +121,8 @@
       when:
         - controller_status.rc == 0
         - compute_status.rc == 0
+
+    - name: check if instance is active
+      shell: ". /home/stack/overcloudrc; openstack server list -c Status -f value"
+      register: status
+      failed_when: "'ACTIVE' not in status.stdout"
